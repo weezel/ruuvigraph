@@ -1,0 +1,6 @@
+**/*.orig
+**/dist
+*.html
+*.txt
+aliases.conf
+data.log
