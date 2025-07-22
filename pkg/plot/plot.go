@@ -66,7 +66,7 @@ func plotTemperature(data *[]ruuvi.Data) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
 		charts.WithTooltipOpts(opts.Tooltip{
-			Show:    true,
+			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
@@ -76,7 +76,7 @@ func plotTemperature(data *[]ruuvi.Data) *charts.Line {
 			Title:    "Temperature",
 			Subtitle: time.Now().Format(time.RFC3339),
 		}),
-		charts.WithAnimation(),
+		charts.WithAnimation(*opts.Bool(true)),
 	)
 
 	m := map[string]*[]ruuvi.Data{}
@@ -95,8 +95,8 @@ func plotTemperature(data *[]ruuvi.Data) *charts.Line {
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
 					opts.LineChart{
-						Smooth:     false,
-						ShowSymbol: true,
+						Smooth:     opts.Bool(false),
+						ShowSymbol: opts.Bool(true),
 					},
 				),
 			)
@@ -109,7 +109,7 @@ func plotHumidity(data *[]ruuvi.Data) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
 		charts.WithTooltipOpts(opts.Tooltip{
-			Show:    true,
+			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 		// charts.WithYAxisOpts(opts.YAxis{
@@ -119,7 +119,7 @@ func plotHumidity(data *[]ruuvi.Data) *charts.Line {
 			Title:    "Humidity",
 			Subtitle: time.Now().Format(time.RFC3339),
 		}),
-		charts.WithAnimation(),
+		charts.WithAnimation(*opts.Bool(true)),
 	)
 
 	m := map[string]*[]ruuvi.Data{}
@@ -138,8 +138,8 @@ func plotHumidity(data *[]ruuvi.Data) *charts.Line {
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
 					opts.LineChart{
-						Smooth:     false,
-						ShowSymbol: true,
+						Smooth:     opts.Bool(false),
+						ShowSymbol: opts.Bool(true),
 					},
 				),
 			)
@@ -153,7 +153,7 @@ func plotAirPressure(data *[]ruuvi.Data) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
 		charts.WithTooltipOpts(opts.Tooltip{
-			Show:    true,
+			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
@@ -163,7 +163,7 @@ func plotAirPressure(data *[]ruuvi.Data) *charts.Line {
 			Title:    "Air pressure",
 			Subtitle: time.Now().Format(time.RFC3339),
 		}),
-		charts.WithAnimation(),
+		charts.WithAnimation(true),
 	)
 
 	m := map[string]*[]ruuvi.Data{}
@@ -182,8 +182,8 @@ func plotAirPressure(data *[]ruuvi.Data) *charts.Line {
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
 					opts.LineChart{
-						Smooth:     false,
-						ShowSymbol: true,
+						Smooth:     opts.Bool(false),
+						ShowSymbol: opts.Bool(true),
 					},
 				),
 			)
