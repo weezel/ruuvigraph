@@ -6,17 +6,15 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"log"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
 
+	"weezel/ruuvigraph/pkg/logging"
 	"weezel/ruuvigraph/pkg/plot"
 	"weezel/ruuvigraph/pkg/ruuvi"
 
-	"github.com/fatih/color"
 	"github.com/go-ble/ble"
 	"github.com/go-ble/ble/examples/lib/dev"
 	"github.com/peterhellberg/ruuvitag"
@@ -34,45 +32,7 @@ var (
 
 var filename = "ruuvidata.txt"
 
-type ColorHandlerOptions struct {
-	SlogOpts slog.HandlerOptions
-}
-
-type ColorHandler struct {
-	slog.Handler
-	l *log.Logger
-}
-
-func NewColorHandler(out io.Writer, opts ColorHandlerOptions) *ColorHandler {
-	return &ColorHandler{
-		Handler: slog.NewTextHandler(out, &opts.SlogOpts),
-		l:       log.New(out, "", 0),
-	}
-}
-
-func (h *ColorHandler) Handle(_ context.Context, r slog.Record) error {
-	level := r.Level.String() + ":"
-
-	switch r.Level {
-	case slog.LevelDebug:
-		level = color.MagentaString(level)
-	case slog.LevelInfo:
-		level = color.BlueString(level)
-	case slog.LevelWarn:
-		level = color.YellowString(level)
-	case slog.LevelError:
-		level = color.RedString(level)
-	}
-
-	timeStr := r.Time.Format("[15:04:05.000]")
-	msg := color.CyanString(r.Message)
-
-	h.l.Println(timeStr, level, msg)
-
-	return nil
-}
-
-var logger *slog.Logger
+var logger *slog.Logger = logging.NewColorLogHandler()
 
 var aliases map[string]string
 
@@ -168,14 +128,6 @@ func chkErr(err error) {
 
 func main() {
 	flag.Parse()
-
-	h := NewColorHandler(os.Stdout, ColorHandlerOptions{
-		SlogOpts: slog.HandlerOptions{
-			Level: slog.LevelInfo,
-		},
-	})
-	logger = slog.New(h)
-	slog.SetDefault(logger)
 
 	als, err := ruuvi.ReadAliases(*aliasesFile)
 	if err != nil {
