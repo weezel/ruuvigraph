@@ -13,10 +13,10 @@ import (
 )
 
 type Data struct {
-	Datetime     string  `json:"datetime,omitempty"`
+	Datetime     string  `json:"datetime"`
 	Name         string  `json:"name,omitempty"`
-	Alias        string  `json:"alias,omitempty"`
-	Address      string  `json:"address,omitempty"`
+	Alias        string  `json:"alias"`
+	Address      string  `json:"address"`
 	Temperature  float64 `json:"temperature,omitempty"`
 	Humidity     float64 `json:"humidity,omitempty"`
 	AirPressure  float64 `json:"air_pressure,omitempty"`
@@ -29,8 +29,8 @@ func (d Data) MergeRuuviRaw2AndBleAdv(
 	ruuviData ruuvitag.RAWv2,
 	bleAdv ble.Advertisement,
 	alias string,
-) *Data {
-	return &Data{
+) Data {
+	return Data{
 		Datetime:     time.Now().Local().Format("2006-01-02T15:04"),
 		Name:         bleAdv.LocalName(),
 		Alias:        alias,
