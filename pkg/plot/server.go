@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"time"
 
 	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 	"weezel/ruuvigraph/pkg/logging"
@@ -19,12 +20,15 @@ var logger *slog.Logger = logging.NewColorLogHandler()
 type PlottingServer struct {
 	ruuvipb.UnimplementedRuuviServer
 
-	server *grpc.Server
+	server        *grpc.Server
+	measureData   []*ruuvipb.RuuviStreamDataRequest
+	lastGenerated time.Time
 }
 
 func NewPlottingServer() *PlottingServer {
 	ps := &PlottingServer{
-		server: grpc.NewServer(),
+		server:        grpc.NewServer(),
+		lastGenerated: time.Now(),
 	}
 
 	ruuvipb.RegisterRuuviServer(ps.server, ps)
@@ -52,9 +56,13 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 		msg, err := stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
-				return stream.SendAndClose(&ruuvipb.RuuviStreamDataResponse{
+				err1 := stream.SendAndClose(&ruuvipb.RuuviStreamDataResponse{
 					Message: "OK",
 				})
+				if err1 != nil {
+					return fmt.Errorf("send and close: %w", err)
+				}
+				return nil
 			}
 			return fmt.Errorf("stream receive error: %w", err)
 		}
@@ -66,8 +74,26 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 			slog.Float64("temperature", float64(msg.Temperature)),
 			slog.Float64("humidity", float64(msg.Humidity)),
 			slog.Float64("pressure", float64(msg.Pressure)),
+			slog.Float64("battery_volts", float64(msg.BatterVolts)),
 			slog.Int("rssi", int(msg.Rssi)),
 			slog.Time("timestamp", msg.Timestamp.AsTime()),
 		)
+
+		p.measureData = append(p.measureData, msg)
+		lastGenerated := time.Since(p.lastGenerated)
+		if lastGenerated.Minutes() >= 1 {
+			logger.Info("Generating results HTML file")
+			if err = Plot(p.measureData); err != nil {
+				logger.Error(
+					"Failed to generate plot",
+					slog.Any("error", err),
+					slog.Duration("last_generated", lastGenerated),
+				)
+			} else {
+				logger.Info("Generated results HTML file")
+				p.lastGenerated = time.Now()
+			}
+
+		}
 	}
 }

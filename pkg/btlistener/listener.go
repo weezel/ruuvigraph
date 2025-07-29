@@ -109,10 +109,7 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 		return fmt.Errorf("receive ack: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf(
-		"Server responded: %q and operations took %s",
-		resp.GetMessage(),
-	))
+	logger.Info(fmt.Sprintf("Server responded: %q", resp.GetMessage()))
 
 	return nil
 }
