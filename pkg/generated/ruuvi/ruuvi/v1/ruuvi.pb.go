@@ -29,8 +29,9 @@ type RuuviStreamDataRequest struct {
 	Temperature   float32                `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
 	Humidity      float32                `protobuf:"fixed32,4,opt,name=humidity,proto3" json:"humidity,omitempty"`
 	Pressure      float32                `protobuf:"fixed32,5,opt,name=pressure,proto3" json:"pressure,omitempty"`
-	Rssi          int32                  `protobuf:"varint,6,opt,name=rssi,proto3" json:"rssi,omitempty"`
-	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	BatterVolts   float32                `protobuf:"fixed32,6,opt,name=batter_volts,json=batterVolts,proto3" json:"batter_volts,omitempty"`
+	Rssi          int32                  `protobuf:"varint,7,opt,name=rssi,proto3" json:"rssi,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -100,6 +101,13 @@ func (x *RuuviStreamDataRequest) GetPressure() float32 {
 	return 0
 }
 
+func (x *RuuviStreamDataRequest) GetBatterVolts() float32 {
+	if x != nil {
+		return x.BatterVolts
+	}
+	return 0
+}
+
 func (x *RuuviStreamDataRequest) GetRssi() int32 {
 	if x != nil {
 		return x.Rssi
@@ -162,16 +170,17 @@ var File_ruuvi_v1_ruuvi_proto protoreflect.FileDescriptor
 
 const file_ruuvi_v1_ruuvi_proto_rawDesc = "" +
 	"\n" +
-	"\x14ruuvi/v1/ruuvi.proto\x12\bruuvi.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf9\x01\n" +
+	"\x14ruuvi/v1/ruuvi.proto\x12\bruuvi.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9c\x02\n" +
 	"\x16RuuviStreamDataRequest\x12\x16\n" +
 	"\x06device\x18\x01 \x01(\tR\x06device\x12\x1f\n" +
 	"\vmac_address\x18\x02 \x01(\tR\n" +
 	"macAddress\x12 \n" +
 	"\vtemperature\x18\x03 \x01(\x02R\vtemperature\x12\x1a\n" +
 	"\bhumidity\x18\x04 \x01(\x02R\bhumidity\x12\x1a\n" +
-	"\bpressure\x18\x05 \x01(\x02R\bpressure\x12\x12\n" +
-	"\x04rssi\x18\x06 \x01(\x05R\x04rssi\x128\n" +
-	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"3\n" +
+	"\bpressure\x18\x05 \x01(\x02R\bpressure\x12!\n" +
+	"\fbatter_volts\x18\x06 \x01(\x02R\vbatterVolts\x12\x12\n" +
+	"\x04rssi\x18\a \x01(\x05R\x04rssi\x128\n" +
+	"\ttimestamp\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"3\n" +
 	"\x17RuuviStreamDataResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage2\\\n" +
 	"\x05Ruuvi\x12S\n" +

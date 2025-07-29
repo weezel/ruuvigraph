@@ -47,7 +47,7 @@ func (p *PlottingServer) Listen(ctx context.Context, host, port string) error {
 	return nil
 }
 
-func (r *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error {
+func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error {
 	for {
 		msg, err := stream.Recv()
 		if err != nil {

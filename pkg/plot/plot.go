@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"weezel/ruuvigraph/pkg/ruuvi"
+	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/components"
@@ -16,53 +16,53 @@ import (
 
 const outHTMLFilename = "sensor_data.html"
 
-func getTemperatures(data *[]ruuvi.Data) []opts.LineData {
+func getTemperatures(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 	items := []opts.LineData{}
-	for _, d := range *data {
+	for _, d := range data {
 		items = append(items, opts.LineData{
-			Name:  d.Alias,
+			Name:  d.Device,
 			Value: fmt.Sprintf("%.2f", d.Temperature),
 		})
 	}
 	return items
 }
 
-func getHumidity(data *[]ruuvi.Data) []opts.LineData {
+func getHumidity(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 	items := []opts.LineData{}
-	for _, d := range *data {
+	for _, d := range data {
 		items = append(items, opts.LineData{
-			Name:  d.Alias,
+			Name:  d.Device,
 			Value: fmt.Sprintf("%.2f", d.Humidity),
 		})
 	}
 	return items
 }
 
-func getAirPressure(data *[]ruuvi.Data) []opts.LineData {
+func getPressure(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 	items := []opts.LineData{}
-	for _, d := range *data {
+	for _, d := range data {
 		var val float64
-		if d.AirPressure > 1000 { // TODO Remove from the final version
-			val = d.AirPressure / 10.0
+		if d.Pressure > 1000 { // TODO Remove from the final version
+			val = float64(d.Pressure) / 10.0
 		}
 		items = append(items, opts.LineData{
-			Name:  d.Alias,
+			Name:  d.Device,
 			Value: fmt.Sprintf("%.2f", val),
 		})
 	}
 	return items
 }
 
-func dateRange(data *[]ruuvi.Data) []string {
+func dateRange(data []*ruuvipb.RuuviStreamDataRequest) []string {
 	items := []string{}
-	for _, d := range *data {
-		items = append(items, d.Datetime)
+	for _, d := range data {
+		items = append(items, d.Timestamp.AsTime().String())
 	}
 	return items
 }
 
 //nolint:dupl // Okay for now
-func plotTemperature(data *[]ruuvi.Data) *charts.Line {
+func plotTemperature(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
 		charts.WithTooltipOpts(opts.Tooltip{
@@ -79,19 +79,19 @@ func plotTemperature(data *[]ruuvi.Data) *charts.Line {
 		charts.WithAnimation(*opts.Bool(true)),
 	)
 
-	m := map[string]*[]ruuvi.Data{}
-	for _, event := range *data {
-		if _, found := m[event.Alias]; !found {
-			m[event.Alias] = &[]ruuvi.Data{}
+	m := map[string][]*ruuvipb.RuuviStreamDataRequest{}
+	for _, event := range data {
+		if _, found := m[event.Device]; !found {
+			m[event.Device] = []*ruuvipb.RuuviStreamDataRequest{}
 		}
-		tmp := *m[event.Alias]
+		tmp := m[event.Device]
 		tmp = append(tmp, event)
-		m[event.Alias] = &tmp
+		m[event.Device] = tmp
 	}
 
-	for alias, values := range m {
+	for Device, values := range m {
 		plotGraph.SetXAxis(dateRange(data)).
-			AddSeries(alias, getTemperatures(values)).
+			AddSeries(Device, getTemperatures(values)).
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
 					opts.LineChart{
@@ -105,7 +105,7 @@ func plotTemperature(data *[]ruuvi.Data) *charts.Line {
 	return plotGraph
 }
 
-func plotHumidity(data *[]ruuvi.Data) *charts.Line {
+func plotHumidity(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
 		charts.WithTooltipOpts(opts.Tooltip{
@@ -122,19 +122,19 @@ func plotHumidity(data *[]ruuvi.Data) *charts.Line {
 		charts.WithAnimation(*opts.Bool(true)),
 	)
 
-	m := map[string]*[]ruuvi.Data{}
-	for _, event := range *data {
-		if _, found := m[event.Alias]; !found {
-			m[event.Alias] = &[]ruuvi.Data{}
+	m := map[string][]*ruuvipb.RuuviStreamDataRequest{}
+	for _, event := range data {
+		if _, found := m[event.Device]; !found {
+			m[event.Device] = []*ruuvipb.RuuviStreamDataRequest{}
 		}
-		tmp := *m[event.Alias]
+		tmp := m[event.Device]
 		tmp = append(tmp, event)
-		m[event.Alias] = &tmp
+		m[event.Device] = tmp
 	}
 
-	for alias, values := range m {
+	for Device, values := range m {
 		plotGraph.SetXAxis(dateRange(data)).
-			AddSeries(alias, getHumidity(values)).
+			AddSeries(Device, getHumidity(values)).
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
 					opts.LineChart{
@@ -149,7 +149,7 @@ func plotHumidity(data *[]ruuvi.Data) *charts.Line {
 }
 
 //nolint:dupl // Okay for now
-func plotAirPressure(data *[]ruuvi.Data) *charts.Line {
+func plotPressure(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
 		charts.WithTooltipOpts(opts.Tooltip{
@@ -166,19 +166,19 @@ func plotAirPressure(data *[]ruuvi.Data) *charts.Line {
 		charts.WithAnimation(true),
 	)
 
-	m := map[string]*[]ruuvi.Data{}
-	for _, event := range *data {
-		if _, found := m[event.Alias]; !found {
-			m[event.Alias] = &[]ruuvi.Data{}
+	m := map[string][]*ruuvipb.RuuviStreamDataRequest{}
+	for _, event := range data {
+		if _, found := m[event.Device]; !found {
+			m[event.Device] = []*ruuvipb.RuuviStreamDataRequest{}
 		}
-		tmp := *m[event.Alias]
+		tmp := m[event.Device]
 		tmp = append(tmp, event)
-		m[event.Alias] = &tmp
+		m[event.Device] = tmp
 	}
 
-	for alias, values := range m {
+	for Device, values := range m {
 		plotGraph.SetXAxis(dateRange(data)).
-			AddSeries(alias, getAirPressure(values)).
+			AddSeries(Device, getPressure(values)).
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
 					opts.LineChart{
@@ -192,12 +192,12 @@ func plotAirPressure(data *[]ruuvi.Data) *charts.Line {
 	return plotGraph
 }
 
-func Plot(data *[]ruuvi.Data) error {
+func Plot(data []*ruuvipb.RuuviStreamDataRequest) error {
 	page := components.NewPage()
 	page.AddCharts(
 		plotTemperature(data),
 		plotHumidity(data),
-		plotAirPressure(data),
+		plotPressure(data),
 	)
 
 	f, err := os.Create(outHTMLFilename)

@@ -181,17 +181,17 @@ func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 		return
 	}
 
-	data := ruuvi.Data{}.MergeRuuviRaw2AndBleAdv(payload, bleAdv, devName)
 	b.lock.Lock()
+	defer b.lock.Unlock()
 	logger.Info(fmt.Sprintf("Received measures for %s", devName))
 	b.measurements[bleAdv.Addr().String()] = &ruuvipb.RuuviStreamDataRequest{
 		Device:      devName,
 		MacAddress:  bleAdv.Addr().String(),
-		Temperature: float32(data.Temperature),
-		Humidity:    float32(data.Humidity),
-		Pressure:    float32(data.AirPressure),
-		Rssi:        int32(data.Dbm),
+		Temperature: float32(payload.Temperature),
+		Humidity:    float32(payload.Humidity),
+		Pressure:    float32(payload.Pressure) / 10.0,
+		BatterVolts: float32(payload.Battery) / 1000.0,
+		Rssi:        int32(bleAdv.RSSI()),
 		Timestamp:   timestamppb.New(time.Now().Local()),
 	}
-	b.lock.Unlock()
 }

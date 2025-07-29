@@ -10,8 +10,9 @@ message RuuviStreamDataRequest {
   float temperature = 3;
   float humidity = 4;
   float pressure = 5;
-  int32 rssi = 6;
-  google.protobuf.Timestamp timestamp = 7;
+	float batter_volts = 6;
+  int32 rssi = 7;
+  google.protobuf.Timestamp timestamp = 8;
 }
 
 service Ruuvi {
