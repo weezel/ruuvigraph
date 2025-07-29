@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 	"time"
+
 	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 	"weezel/ruuvigraph/pkg/logging"
 	"weezel/ruuvigraph/pkg/ruuvi"
@@ -77,7 +78,6 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	stream, err := b.streamerClient.StreamData(ctx)
 	if err != nil {
 		return fmt.Errorf("stream data: %w", err)
-
 	}
 	defer stream.CloseSend()
 
@@ -112,7 +112,6 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	logger.Info(fmt.Sprintf(
 		"Server responded: %q and operations took %s",
 		resp.GetMessage(),
-		time.Since(started),
 	))
 
 	return nil
@@ -134,7 +133,13 @@ func (b *BtListener) Listen(ctx context.Context) {
 			case <-b.ticker.C:
 				started := time.Now()
 				logger.Info("Streaming results")
-				b.SendMeasurements(ctx)
+				if err := b.SendMeasurements(ctx); err != nil {
+					logger.Error(
+						"Failed to send measurements",
+						slog.Any("error", err),
+						slog.Int("count", len(b.measurements)),
+					)
+				}
 
 				b.lock.Lock()
 				logger.Info(

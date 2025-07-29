@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"time"
+
 	"weezel/ruuvigraph/pkg/btlistener"
 	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 	"weezel/ruuvigraph/pkg/logging"
