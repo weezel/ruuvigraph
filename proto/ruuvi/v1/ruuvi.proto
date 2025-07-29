@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package ruuvi.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message RuuviStreamDataRequest {
+  string device = 1;
+  string mac_address = 2;
+  float temperature = 3;
+  float humidity = 4;
+  float pressure = 5;
+  int32 rssi = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+service Ruuvi {
+  rpc StreamData(stream RuuviStreamDataRequest) returns (RuuviStreamDataResponse);
+}
+
+message RuuviStreamDataResponse {
+  string message = 1;
+}

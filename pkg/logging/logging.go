@@ -2,10 +2,12 @@ package logging
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 )
@@ -43,9 +45,33 @@ func (h *ColorHandler) Handle(_ context.Context, r slog.Record) error {
 	timeStr := r.Time.Format("[15:04:05.000]")
 	msg := color.CyanString(r.Message)
 
-	h.l.Println(timeStr, level, msg)
+	var attrs []string
+	r.Attrs(func(attr slog.Attr) bool {
+		attrs = append(attrs, fmt.Sprintf("%s=%v", attr.Key, attr.Value.Any()))
+		return true
+	})
 
+	attrStr := ""
+	if len(attrs) > 0 {
+		attrStr = " [" + strings.Join(attrs, " ") + "]"
+	}
+
+	h.l.Println(timeStr, level, msg+attrStr)
 	return nil
+}
+
+func (h *ColorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ColorHandler{
+		Handler: h.Handler.WithAttrs(attrs),
+		l:       h.l,
+	}
+}
+
+func (h *ColorHandler) WithGroup(name string) slog.Handler {
+	return &ColorHandler{
+		Handler: h.Handler.WithGroup(name),
+		l:       h.l,
+	}
 }
 
 func NewColorLogHandler() *slog.Logger {
@@ -53,7 +79,8 @@ func NewColorLogHandler() *slog.Logger {
 		os.Stdout,
 		ColorHandlerOptions{
 			SlogOpts: slog.HandlerOptions{
-				Level: slog.LevelInfo,
+				Level:     slog.LevelInfo,
+				AddSource: true,
 			},
 		})
 	logger := slog.New(h)

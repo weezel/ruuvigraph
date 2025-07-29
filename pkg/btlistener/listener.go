@@ -8,23 +8,31 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
+	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 	"weezel/ruuvigraph/pkg/logging"
 	"weezel/ruuvigraph/pkg/ruuvi"
 
 	"github.com/go-ble/ble"
 	blelinux "github.com/go-ble/ble/linux"
 	"github.com/peterhellberg/ruuvitag"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var logger *slog.Logger = logging.NewColorLogHandler()
 
 type BtListener struct {
-	device        *blelinux.Device
-	once          *sync.Once
-	deviceAliases map[string]string
+	ruuvipb.UnimplementedRuuviServer
+
+	streamerClient ruuvipb.RuuviClient
+	device         *blelinux.Device
+	deviceAliases  map[string]string
+	measurements   map[string]*ruuvipb.RuuviStreamDataRequest
+	lock           sync.RWMutex
+	ticker         *time.Ticker
 }
 
-func NewListener() *BtListener {
+func NewListener(streamerClient ruuvipb.RuuviClient) *BtListener {
 	aliasesFname := cmp.Or(os.Getenv("ALIASES_FILE"), "ruuvi_aliases.conf")
 	devAliases, err := ruuvi.ReadAliases(aliasesFname)
 	if err != nil {
@@ -36,8 +44,10 @@ func NewListener() *BtListener {
 	}
 
 	return &BtListener{
-		once:          &sync.Once{},
-		deviceAliases: devAliases,
+		deviceAliases:  devAliases,
+		streamerClient: streamerClient,
+		measurements:   make(map[string]*ruuvipb.RuuviStreamDataRequest),
+		ticker:         time.NewTicker(30 * time.Second),
 	}
 }
 
@@ -52,12 +62,84 @@ func (b *BtListener) InitializeDevice(ctx context.Context) error {
 	return nil
 }
 
+func (b *BtListener) SendMeasurements(ctx context.Context) error {
+	b.lock.RLock()
+
+	stream, err := b.streamerClient.StreamData(ctx)
+	if err != nil {
+		return fmt.Errorf("stream data: %w", err)
+
+	}
+	defer stream.CloseSend()
+
+	started := time.Now()
+	for _, m := range b.measurements {
+		logger.Info(
+			"Sending data",
+			slog.String("device", m.Device),
+			slog.String("mac", m.MacAddress),
+			slog.Time("timestamp", m.Timestamp.AsTime()),
+		)
+		if err = stream.Send(m); err != nil {
+			logger.Warn(
+				"Error sending data",
+				slog.String("device", m.Device),
+				slog.String("mac", m.MacAddress),
+				slog.Any("error", err),
+			)
+		}
+		logger.Info(
+			"Sent data",
+			slog.String("device", m.Device),
+			slog.String("mac", m.MacAddress),
+			slog.Time("timestamp", m.Timestamp.AsTime()),
+		)
+	}
+	// Receive ACK
+	resp, err := stream.CloseAndRecv()
+	if err != nil {
+		return fmt.Errorf("receive ack: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf(
+		"Server responded: %q and operations took %s",
+		resp.GetMessage(),
+		time.Since(started),
+	))
+	b.lock.RUnlock()
+
+	return nil
+}
+
 // Listen starts listening bluetooth beacons and specifially Ruuvi ones.
 // Filtering happens in function handleAdvertisement.
 // Stopping is built-in for ble package so no need to build extra
 // functionality for such purposes.
 func (b *BtListener) Listen(ctx context.Context) {
 	logger.Info("Scanning for RuuviTags (press Ctrl+C to stop)...")
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				b.ticker.Stop()
+				return
+			case <-b.ticker.C:
+				started := time.Now()
+				logger.Info("Streaming results")
+				b.SendMeasurements(ctx)
+
+				b.lock.Lock()
+				logger.Info(
+					"Streamed results",
+					slog.Int("count", len(b.measurements)),
+					slog.Duration("duration", time.Since(started)),
+				)
+				clear(b.measurements)
+				b.lock.Unlock()
+			}
+		}
+	}()
 
 	go func() {
 		err := ble.Scan(ctx, true, b.handleAdvertisement, nil)
@@ -76,7 +158,7 @@ func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 	if devName, found = b.deviceAliases[bleAdv.Addr().String()]; !found {
 		return
 	}
-	flogger := logger.With("device", devName) // FIXME
+	flogger := logger.With("device", devName) // FIXME this is broken and doesn't work
 
 	mfData := bleAdv.ManufacturerData()
 	if len(mfData) == 0 {
@@ -93,5 +175,16 @@ func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 	}
 
 	data := ruuvi.Data{}.MergeRuuviRaw2AndBleAdv(payload, bleAdv, devName)
-	flogger.Info(data.String())
+	b.lock.Lock()
+	logger.Info(fmt.Sprintf("Received measures for %s", devName))
+	b.measurements[bleAdv.Addr().String()] = &ruuvipb.RuuviStreamDataRequest{
+		Device:      devName,
+		MacAddress:  bleAdv.Addr().String(),
+		Temperature: float32(data.Temperature),
+		Humidity:    float32(data.Humidity),
+		Pressure:    float32(data.AirPressure),
+		Rssi:        int32(data.Dbm),
+		Timestamp:   timestamppb.New(time.Now().Local()),
+	}
+	b.lock.Unlock()
 }
