@@ -63,7 +63,16 @@ func (b *BtListener) InitializeDevice(ctx context.Context) error {
 }
 
 func (b *BtListener) SendMeasurements(ctx context.Context) error {
+	started := time.Now()
+	b.lock.Lock()
+	// Normalise timestamps. All measurements will use the same timestamp.
+	for _, m := range b.measurements {
+		m.Timestamp = timestamppb.New(started)
+	}
+	b.lock.Unlock()
+
 	b.lock.RLock()
+	defer b.lock.RUnlock()
 
 	stream, err := b.streamerClient.StreamData(ctx)
 	if err != nil {
@@ -72,7 +81,6 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	}
 	defer stream.CloseSend()
 
-	started := time.Now()
 	for _, m := range b.measurements {
 		logger.Info(
 			"Sending data",
@@ -106,7 +114,6 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 		resp.GetMessage(),
 		time.Since(started),
 	))
-	b.lock.RUnlock()
 
 	return nil
 }
