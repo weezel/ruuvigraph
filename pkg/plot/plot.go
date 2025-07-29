@@ -3,7 +3,6 @@ package plot
 import (
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"time"
 
@@ -202,10 +201,12 @@ func Plot(data []*ruuvipb.RuuviStreamDataRequest) error {
 
 	f, err := os.Create(outHTMLFilename)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Failed to create bar.html: %s", err))
-		msg := fmt.Sprintf("create file %s", outHTMLFilename)
-		return fmt.Errorf("%s: %w", msg, err)
+		return fmt.Errorf("create file: %w", err)
 	}
 
-	return fmt.Errorf("page render: %w", page.Render(io.MultiWriter(f)))
+	if err = page.Render(io.MultiWriter(f)); err != nil {
+		return fmt.Errorf("page render: %w", err)
+	}
+
+	return nil
 }
