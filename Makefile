@@ -19,6 +19,9 @@ all: lint build-all
 
 _build: dist/$(APP_NAME)
 
+build-proto:
+	@buf generate
+
 build-all:
 	make -C cmd
 
