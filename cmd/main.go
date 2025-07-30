@@ -14,6 +14,7 @@ import (
 	"weezel/ruuvigraph/pkg/plot"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var logger *slog.Logger = logging.NewColorLogHandler()
@@ -44,7 +45,7 @@ func runAsClient(ctx context.Context) {
 	logger.Info("Collecting measurements")
 	conn, err := grpc.NewClient(
 		net.JoinHostPort(*grpcHost, *grpcPort),
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
 		logger.Error(
@@ -54,7 +55,7 @@ func runAsClient(ctx context.Context) {
 		return
 	}
 	defer conn.Close()
-	logger.Info(fmt.Sprintf("Sending measurements to %s:%s", *grpcHost, *grpcPort))
+	logger.Info(fmt.Sprintf("Measurements receiving endpoint configured to %s:%s", *grpcHost, *grpcPort))
 
 	client := ruuvipb.NewRuuviClient(conn)
 
