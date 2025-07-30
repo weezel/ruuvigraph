@@ -75,6 +75,8 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
 	stream, err := b.streamerClient.StreamData(ctx)
 	if err != nil {
 		return fmt.Errorf("stream data: %w", err)
