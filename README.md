@@ -5,8 +5,11 @@
 Ruuvi graph is an application for plotting temperature, humidity and air pressure based on Ruuvi tags measurements.
 There are several similar apps but all seem to be doing too much.
 Hence, this project was born.
-I'm not completely happy about the implementation details and a few aspects but better release it than hold it.
-Pull requests are warmly welcomed.
+
+Scanning happens passively by reading manufacturing info field from beacons Ruuvis are sending.
+This drastically saves the battery life.
+Downside is that events aren't equally distributed and seems to be proportional to sensor's distance.
+Nevertheless, since tracking doesn't need to be in minute level this is okay.
 
 An example graph which consists four sensors:
 ![alt text](plot_example.png)
@@ -20,15 +23,9 @@ Charasteristics this application has:
 * Avoids extensive writes to disk
   * Extremely important on Raspberry Pi and other machines which use micro SD cards
 
-## Caveats
-
-* When a scan is performed, it's possible the certain Ruuvis will have time to report their values more than once.
-  One those occasions graph looks a bit dirty.
-  The proper solution should be to only take the latest value.
-
 ## Dependencies
 
-* Go > 1.19 (maybe older are okay too)
+* Go > 1.23 (maybe older are okay too)
 
 ## Build
 
@@ -58,28 +55,30 @@ Pay attention to filenames when examining the output.
 
 Aliases file can be configured to map MAC addresses to user friendly names.
 E.g. Ruuvitag with `aa:bb:cc:dd:ee:ff` MAC address is converted to `Kitchen`.
-Copy an example aliases file from `pkg/ruuvi/example_devices.conf` to `cmd/aliases.conf` and
+Copy an example aliases file from `pkg/ruuvi/example_devices.conf` to `cmd/ruuvi_aliases.conf` and
 edit it to match your needs.
 
 ## Usage
 
-Simplest case it's:
+Run server and client on the same host:
 
 ```bash
-sudo ./dist/ruuvigraph
+# Start server
+./dist/ruuvigraph -s
+
+# Start Bluetooth listener and streamer
+doas ./dist/ruuvigraph
 ```
 
-Sudo is needed to interact with a bluetooth device.
+Doas or sudo is needed to interact with bluetooth device.
 Better option would be to grant access to certain dedicated user only with e.g. bluetooth group access.
-Or use `doas` or such with minimal access rights.
 
 ## Future plans
 
 Lessons learned while doing this Sunday hack up and will be implemented for the version 2.0:
 
-* Separate service for graph plotting and data collection
-  * Possible to host and store data on a different host
-* Keep data events on memory and
-  * write to disk
-  * or send to an another host
-* Configurable data retention period
+* Clean up code
+* Hook up flags
+* Add automatic clean up for measurements data (on the server side)
+* Write results to disk for archiving purposes
+
