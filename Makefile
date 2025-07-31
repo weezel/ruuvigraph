@@ -8,8 +8,8 @@ BUILD_TIME	?= $(shell date)
 # -s removes symbol table and -ldflags -w debugging symbols
 LDFLAGS		?= -asmflags -trimpath -ldflags \
 		   "-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}'"
-GOARCH		?=
-GOOS		?=
+GOARCH		?= amd64
+GOOS		?= linux
 # CGO_ENABLED=0 == static by default
 CGO_ENABLED	?= 0
 
@@ -25,10 +25,19 @@ build-proto:
 build-all:
 	make -C cmd
 
+.PHONY: cross-compile
+cross-compile:
+	@for target in "linux amd64" "linux arm" "openbsd amd64"; do \
+		GOOS=$$(echo $$target | cut -d' ' -f1); \
+		GOARCH=$$(echo $$target | cut -d' ' -f2); \
+		echo "Building for $$GOOS/$$GOARCH..."; \
+		$(MAKE) GOOS=$$GOOS GOARCH=$$GOARCH _build; \
+	done
+
 dist/$(APP_NAME):
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		$(GO) build $(LDFLAGS) \
-		-o dist/$(APP_NAME) \
+		-o dist/$(APP_NAME)-$(GOOS)-$(GOARCH) \
 		main.go
 
 .PHONY: clean
