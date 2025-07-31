@@ -3,4 +3,5 @@
 *.html
 *.txt
 aliases.conf
+cmd/ruuvi_aliases.conf
 data.log
