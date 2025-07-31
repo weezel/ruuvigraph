@@ -95,7 +95,7 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 			"Sending data",
 			slog.String("device", m.Device),
 			slog.String("mac", m.MacAddress),
-			slog.Time("timestamp", m.Timestamp.AsTime()),
+			slog.Time("timestamp", m.Timestamp.AsTime().Local()),
 		)
 		if err = stream.Send(m); err != nil {
 			logger.Warn(
@@ -109,7 +109,7 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 			"Sent data",
 			slog.String("device", m.Device),
 			slog.String("mac", m.MacAddress),
-			slog.Time("timestamp", m.Timestamp.AsTime()),
+			slog.Time("timestamp", m.Timestamp.AsTime().Local()),
 		)
 	}
 	// Receive ACK

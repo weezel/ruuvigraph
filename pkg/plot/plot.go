@@ -73,7 +73,7 @@ func plotTemperature(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Temperature",
-			Subtitle: time.Now().Format(time.RFC3339),
+			Subtitle: time.Now().Local().Format(time.RFC3339),
 		}),
 		charts.WithAnimation(*opts.Bool(true)),
 	)
@@ -116,7 +116,7 @@ func plotHumidity(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 		// }),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Humidity",
-			Subtitle: time.Now().Format(time.RFC3339),
+			Subtitle: time.Now().Local().Format(time.RFC3339),
 		}),
 		charts.WithAnimation(*opts.Bool(true)),
 	)
@@ -160,7 +160,7 @@ func plotPressure(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Air pressure",
-			Subtitle: time.Now().Format(time.RFC3339),
+			Subtitle: time.Now().Local().Format(time.RFC3339),
 		}),
 		charts.WithAnimation(true),
 	)

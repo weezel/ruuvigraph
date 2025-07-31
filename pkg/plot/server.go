@@ -82,7 +82,7 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 			slog.Float64("pressure", float64(msg.Pressure)),
 			slog.Float64("battery_volts", float64(msg.BatterVolts)),
 			slog.Int("rssi", int(msg.Rssi)),
-			slog.Time("timestamp", msg.Timestamp.AsTime()),
+			slog.Time("timestamp", msg.Timestamp.AsTime().Local()),
 		)
 
 		p.measureData.Add(msg)
