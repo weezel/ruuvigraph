@@ -13,11 +13,11 @@ import (
 var logger *slog.Logger = logging.NewColorLogHandler()
 
 type Measurements struct {
-	data   []*ruuvipb.RuuviStreamDataRequest
 	ticker *time.Ticker
+	quit   chan struct{}
+	data   []*ruuvipb.RuuviStreamDataRequest
 	maxAge time.Duration
 	lock   sync.RWMutex
-	quit   chan struct{}
 }
 
 type OptionMeasurement func(mopt *Measurements)

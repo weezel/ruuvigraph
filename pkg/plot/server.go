@@ -37,7 +37,7 @@ func NewPlottingServer() *PlottingServer {
 	return ps
 }
 
-func (p *PlottingServer) Listen(ctx context.Context, host, port string) error {
+func (p *PlottingServer) Listen(host, port string) error {
 	addr := net.JoinHostPort(host, port)
 
 	listen, err := net.Listen("tcp", addr)

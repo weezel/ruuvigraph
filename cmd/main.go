@@ -30,7 +30,7 @@ var (
 
 func runAsServer(ctx context.Context) {
 	server := plot.NewPlottingServer()
-	if err := server.Listen(ctx, *grpcHost, *grpcPort); err != nil {
+	if err := server.Listen(*grpcHost, *grpcPort); err != nil {
 		logger.Error(
 			"Failed to start server on listen mode",
 			slog.Any("error", err),

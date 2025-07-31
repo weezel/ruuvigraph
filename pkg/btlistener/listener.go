@@ -27,10 +27,10 @@ type BtListener struct {
 
 	streamerClient ruuvipb.RuuviClient
 	device         *blelinux.Device
+	ticker         *time.Ticker
 	deviceAliases  map[string]string
 	measurements   map[string]*ruuvipb.RuuviStreamDataRequest
 	lock           sync.RWMutex
-	ticker         *time.Ticker
 }
 
 func NewListener(streamerClient ruuvipb.RuuviClient) *BtListener {
@@ -81,7 +81,14 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("stream data: %w", err)
 	}
-	defer stream.CloseSend()
+	defer func() {
+		if err = stream.CloseSend(); err != nil {
+			logger.Error(
+				"Failed to close stream",
+				slog.Any("error", err),
+			)
+		}
+	}()
 
 	for _, m := range b.measurements {
 		logger.Info(
