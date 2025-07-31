@@ -19,8 +19,10 @@ func getTemperatures(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 	items := []opts.LineData{}
 	for _, d := range data {
 		items = append(items, opts.LineData{
-			Name:  d.Device,
-			Value: fmt.Sprintf("%.2f", d.Temperature),
+			Value: []any{
+				d.Timestamp.AsTime().Local().Format(time.RFC3339), // X axis
+				d.GetTemperature(), // Y axis
+			},
 		})
 	}
 	return items
@@ -30,8 +32,10 @@ func getHumidity(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 	items := []opts.LineData{}
 	for _, d := range data {
 		items = append(items, opts.LineData{
-			Name:  d.Device,
-			Value: fmt.Sprintf("%.2f", d.Humidity),
+			Value: []any{
+				d.Timestamp.AsTime().Local().Format(time.RFC3339), // X axis
+				d.GetHumidity(), // Y axis
+			},
 		})
 	}
 	return items
@@ -40,22 +44,13 @@ func getHumidity(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 func getPressure(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 	items := []opts.LineData{}
 	for _, d := range data {
-		var val float64
-		if d.Pressure > 1000 { // TODO Remove from the final version
-			val = float64(d.Pressure) / 10.0
-		}
 		items = append(items, opts.LineData{
-			Name:  d.Device,
-			Value: fmt.Sprintf("%.2f", val),
+			// Name: d.Device,
+			Value: []any{
+				d.Timestamp.AsTime().Local().Format(time.RFC3339), // X axis
+				d.GetPressure(), // Y axis
+			},
 		})
-	}
-	return items
-}
-
-func dateRange(data []*ruuvipb.RuuviStreamDataRequest) []string {
-	items := []string{}
-	for _, d := range data {
-		items = append(items, d.Timestamp.AsTime().String())
 	}
 	return items
 }
@@ -64,6 +59,14 @@ func dateRange(data []*ruuvipb.RuuviStreamDataRequest) []string {
 func plotTemperature(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			PageTitle: "Temperature",
+			Width:     "100%",
+			Height:    "500px",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+		}),
 		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
@@ -73,7 +76,7 @@ func plotTemperature(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Temperature",
-			Subtitle: time.Now().Local().Format(time.RFC3339),
+			Subtitle: time.Now().Local().Format(time.DateTime),
 		}),
 		charts.WithAnimation(*opts.Bool(true)),
 	)
@@ -89,7 +92,7 @@ func plotTemperature(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	}
 
 	for Device, values := range m {
-		plotGraph.SetXAxis(dateRange(data)).
+		plotGraph.
 			AddSeries(Device, getTemperatures(values)).
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
@@ -107,16 +110,21 @@ func plotTemperature(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 func plotHumidity(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			PageTitle: "Humidity",
+			Width:     "100%",
+			Height:    "500px",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+		}),
 		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
-		// charts.WithYAxisOpts(opts.YAxis{
-		// 	Min: 19.0,
-		// }),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Humidity",
-			Subtitle: time.Now().Local().Format(time.RFC3339),
+			Subtitle: time.Now().Local().Format(time.DateTime),
 		}),
 		charts.WithAnimation(*opts.Bool(true)),
 	)
@@ -132,7 +140,7 @@ func plotHumidity(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	}
 
 	for Device, values := range m {
-		plotGraph.SetXAxis(dateRange(data)).
+		plotGraph.
 			AddSeries(Device, getHumidity(values)).
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
@@ -151,6 +159,14 @@ func plotHumidity(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 func plotPressure(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	plotGraph := charts.NewLine()
 	plotGraph.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			PageTitle: "Pressure",
+			Width:     "100%",
+			Height:    "500px",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+		}),
 		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
@@ -160,7 +176,7 @@ func plotPressure(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Air pressure",
-			Subtitle: time.Now().Local().Format(time.RFC3339),
+			Subtitle: time.Now().Local().Format(time.DateTime),
 		}),
 		charts.WithAnimation(true),
 	)
@@ -176,7 +192,7 @@ func plotPressure(data []*ruuvipb.RuuviStreamDataRequest) *charts.Line {
 	}
 
 	for Device, values := range m {
-		plotGraph.SetXAxis(dateRange(data)).
+		plotGraph.
 			AddSeries(Device, getPressure(values)).
 			SetSeriesOptions(
 				charts.WithLineChartOpts(
