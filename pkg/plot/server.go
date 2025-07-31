@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"weezel/ruuvigraph/pkg/cache"
 	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 	"weezel/ruuvigraph/pkg/logging"
 
@@ -21,13 +22,14 @@ type PlottingServer struct {
 	ruuvipb.UnimplementedRuuviServer
 
 	server        *grpc.Server
-	measureData   []*ruuvipb.RuuviStreamDataRequest
+	measureData   *cache.Measurements
 	lastGenerated time.Time
 }
 
 func NewPlottingServer() *PlottingServer {
 	ps := &PlottingServer{
 		server:        grpc.NewServer(),
+		measureData:   cache.New(),
 		lastGenerated: time.Now(),
 	}
 
@@ -49,6 +51,10 @@ func (p *PlottingServer) Listen(ctx context.Context, host, port string) error {
 	}
 
 	return nil
+}
+
+func (p *PlottingServer) Stop() {
+	p.measureData.Stop()
 }
 
 func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error {
@@ -79,11 +85,11 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 			slog.Time("timestamp", msg.Timestamp.AsTime()),
 		)
 
-		p.measureData = append(p.measureData, msg)
+		p.measureData.Add(msg)
 		lastGenerated := time.Since(p.lastGenerated)
 		if lastGenerated.Minutes() >= 1 {
 			logger.Info("Generating results HTML file")
-			if err = Plot(p.measureData); err != nil {
+			if err = Plot(p.measureData.All()); err != nil {
 				logger.Error(
 					"Failed to generate plot",
 					slog.Any("error", err),

@@ -38,7 +38,10 @@ func runAsServer(ctx context.Context) {
 		return
 	}
 
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+		server.Stop()
+	}
 }
 
 func runAsClient(ctx context.Context) {
