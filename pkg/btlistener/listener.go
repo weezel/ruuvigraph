@@ -65,15 +65,10 @@ func (b *BtListener) InitializeDevice(ctx context.Context) error {
 
 func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	started := time.Now()
-	b.lock.Lock()
 	// Normalise timestamps. All measurements will use the same timestamp.
 	for _, m := range b.measurements {
 		m.Timestamp = timestamppb.New(started)
 	}
-	b.lock.Unlock()
-
-	b.lock.RLock()
-	defer b.lock.RUnlock()
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
@@ -137,24 +132,28 @@ func (b *BtListener) Listen(ctx context.Context) {
 				b.ticker.Stop()
 				return
 			case <-b.ticker.C:
-				started := time.Now()
-				logger.Info("Streaming results")
-				if err := b.SendMeasurements(ctx); err != nil {
-					logger.Error(
-						"Failed to send measurements",
-						slog.Any("error", err),
-						slog.Int("count", len(b.measurements)),
-					)
-				}
+				// Use anonymous function here to make defer unlock work properly
+				func() {
+					b.lock.Lock()
+					defer b.lock.Unlock()
 
-				b.lock.Lock()
-				logger.Info(
-					"Streamed results",
-					slog.Int("count", len(b.measurements)),
-					slog.Duration("duration", time.Since(started)),
-				)
-				clear(b.measurements)
-				b.lock.Unlock()
+					started := time.Now()
+					logger.Info("Streaming results")
+					if err := b.SendMeasurements(ctx); err != nil {
+						logger.Error(
+							"Failed to send measurements",
+							slog.Any("error", err),
+							slog.Int("count", len(b.measurements)),
+						)
+					}
+
+					logger.Info(
+						"Streamed results",
+						slog.Int("count", len(b.measurements)),
+						slog.Duration("duration", time.Since(started)),
+					)
+					clear(b.measurements)
+				}()
 			}
 		}
 	}()
