@@ -42,7 +42,7 @@ dist/$(APP_NAME):
 
 .PHONY: clean
 clean:
-	-rm -rf cmd/dist/
+	-rm -rf dist/
 
 install-dependencies:
 	@go get -d -v ./...
