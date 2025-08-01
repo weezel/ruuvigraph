@@ -59,8 +59,8 @@ func New(opts ...OptionMeasurement) *Measurements {
 	m := &Measurements{
 		data:   []*ruuvipb.RuuviStreamDataRequest{},
 		quit:   make(chan struct{}),
-		maxAge: time.Hour * 24 * 30,
-		ticker: time.NewTicker(time.Minute * 10),
+		maxAge: time.Hour * 24 * 7,
+		ticker: time.NewTicker(time.Minute * 5),
 	}
 
 	for _, opt := range opts {
