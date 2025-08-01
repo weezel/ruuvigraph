@@ -171,6 +171,9 @@ func (b *BtListener) Listen(ctx context.Context) {
 }
 
 func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
 	var found bool
 	var devName string
 	if devName, found = b.deviceAliases[bleAdv.Addr().String()]; !found {
@@ -192,8 +195,6 @@ func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 		return
 	}
 
-	b.lock.Lock()
-	defer b.lock.Unlock()
 	logger.Info(fmt.Sprintf("Received measures for %s", devName))
 	b.measurements[bleAdv.Addr().String()] = &ruuvipb.RuuviStreamDataRequest{
 		Device:      devName,
