@@ -24,6 +24,8 @@ type PlottingServer struct {
 	server        *grpc.Server
 	measureData   *cache.Measurements
 	lastGenerated time.Time
+	doPlot        chan time.Duration
+	stop          chan struct{}
 }
 
 func NewPlottingServer() *PlottingServer {
@@ -31,6 +33,8 @@ func NewPlottingServer() *PlottingServer {
 		server:        grpc.NewServer(),
 		measureData:   cache.New(),
 		lastGenerated: time.Now(),
+		doPlot:        make(chan time.Duration, 1),
+		stop:          make(chan struct{}),
 	}
 
 	ruuvipb.RegisterRuuviServer(ps.server, ps)
@@ -50,11 +54,35 @@ func (p *PlottingServer) Listen(host, port string) error {
 		return fmt.Errorf("serve: %w", err)
 	}
 
+	go p.plotter()
+
 	return nil
 }
 
 func (p *PlottingServer) Stop() {
 	p.measureData.Stop()
+	p.stop <- struct{}{}
+	close(p.stop)
+}
+
+func (p *PlottingServer) plotter() {
+	for {
+		select {
+		case <-p.stop:
+			close(p.doPlot)
+		case lastGenerated := <-p.doPlot:
+			if err := Plot(p.measureData.All()); err != nil {
+				logger.Error(
+					"Failed to generate plot",
+					slog.Any("error", err),
+					slog.Duration("last_generated", lastGenerated),
+				)
+			} else {
+				logger.Info("Generated results HTML file")
+				p.lastGenerated = time.Now()
+			}
+		}
+	}
 }
 
 func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error {
@@ -89,17 +117,7 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 		lastGenerated := time.Since(p.lastGenerated)
 		if lastGenerated.Minutes() >= 1 {
 			logger.Info("Generating results HTML file")
-			if err = Plot(p.measureData.All()); err != nil {
-				logger.Error(
-					"Failed to generate plot",
-					slog.Any("error", err),
-					slog.Duration("last_generated", lastGenerated),
-				)
-			} else {
-				logger.Info("Generated results HTML file")
-				p.lastGenerated = time.Now()
-			}
-
+			p.doPlot <- lastGenerated
 		}
 	}
 }
