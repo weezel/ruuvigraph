@@ -152,7 +152,7 @@ func (b *BtListener) Listen(ctx context.Context) {
 						slog.Int("count", len(b.measurements)),
 						slog.Duration("duration", time.Since(started)),
 					)
-					clear(b.measurements)
+					b.measurements = make(map[string]*ruuvipb.RuuviStreamDataRequest)
 				}()
 			}
 		}
