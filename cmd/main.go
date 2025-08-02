@@ -17,6 +17,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// Linker will fill these
+var (
+	Version   string
+	BuildTime string
+)
+
 var logger *slog.Logger = logging.NewColorLogHandler()
 
 var (
@@ -80,6 +86,12 @@ func runAsClient(ctx context.Context) {
 
 func main() {
 	ctx := context.Background()
+
+	logger.Info(
+		"Version info",
+		slog.String("build_time", BuildTime),
+		slog.String("version", Version),
+	)
 
 	flag.Parse()
 
