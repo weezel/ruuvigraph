@@ -36,17 +36,22 @@ var (
 
 func runAsServer(ctx context.Context) {
 	server := plot.NewPlottingServer()
-	if err := server.Listen(*grpcHost, *grpcPort); err != nil {
-		logger.Error(
-			"Failed to start server on listen mode",
-			slog.Any("error", err),
-		)
-		return
-	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Listen(*grpcHost, *grpcPort)
+	}()
 
 	select {
 	case <-ctx.Done():
 		server.Stop()
+	case err := <-errCh:
+		if err != nil {
+			logger.Error(
+				"Failed to start server on listen mode",
+				slog.Any("error", err),
+			)
+			return
+		}
 	}
 }
 
