@@ -94,7 +94,7 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 					Message: "OK",
 				})
 				if err1 != nil {
-					return fmt.Errorf("send and close: %w", err)
+					return fmt.Errorf("send and close: %w (%w)", err1, err)
 				}
 				return nil
 			}
