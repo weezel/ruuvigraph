@@ -124,10 +124,12 @@ func (m *Measurements) run() {
 				}()
 			}
 
+			countBefore := len(m.data)
 			m.data = m.pruneOldData()
+			removedItems := len(m.data) - countBefore
 			logger.Info(
 				"Cleaned old measurements",
-				slog.Int("len", len(m.data)),
+				slog.Int("removed_items", removedItems),
 			)
 
 			wg.Wait() // This is zero if no task has been launched, hence not blocking
