@@ -52,14 +52,19 @@ func (p *PlottingServer) Listen(host, port string) error {
 		return fmt.Errorf("net listen: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("gRPC server listening on %s", addr))
-	if err = p.server.Serve(listen); err != nil {
-		return fmt.Errorf("serve: %w", err)
-	}
-
+	logger.Info("Starting plotter service")
 	go p.plotter()
+	logger.Info("Started plotter service")
 
-	return nil
+	logger.Info(fmt.Sprintf("gRPC server listening on %s", addr))
+	errCh := make(chan error, 1)
+	go func() {
+		if err = p.server.Serve(listen); err != nil {
+			errCh <- fmt.Errorf("serve grpc: %w", err)
+		}
+	}()
+
+	return <-errCh
 }
 
 func (p *PlottingServer) Stop() {
@@ -73,6 +78,8 @@ func (p *PlottingServer) Stop() {
 
 func (p *PlottingServer) plotter() {
 	defer func() {
+		logger.Info("Stopping plotter")
+
 		if p.server != nil {
 			logger.Info("Stopping gRPC server")
 			p.server.GracefulStop()
@@ -134,7 +141,10 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 		p.measureData.Add(msg)
 		lastGenerated := time.Since(p.lastGenerated)
 		if lastGenerated.Minutes() >= 1 {
-			p.doPlot <- lastGenerated
+			select {
+			case p.doPlot <- lastGenerated:
+			default: // Plot already scheduled, no need to enqueue another
+			}
 		}
 	}
 }
