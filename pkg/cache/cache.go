@@ -20,6 +20,7 @@ var logger *slog.Logger = logging.NewColorLogHandler()
 type Measurements struct {
 	storeFilename *string
 	ticker        *time.Ticker
+	once          *sync.Once
 	quit          chan struct{}
 	data          []*ruuvipb.RuuviStreamDataRequest
 	maxAge        time.Duration
@@ -59,6 +60,7 @@ func New(opts ...OptionMeasurement) *Measurements {
 	m := &Measurements{
 		data:   []*ruuvipb.RuuviStreamDataRequest{},
 		quit:   make(chan struct{}),
+		once:   &sync.Once{},
 		maxAge: time.Hour * 24 * 7,
 		ticker: time.NewTicker(time.Minute * 5),
 	}
@@ -74,8 +76,9 @@ func New(opts ...OptionMeasurement) *Measurements {
 
 func (m *Measurements) Stop() {
 	logger.Info("Shutting down measurements ticker")
-	m.quit <- struct{}{}
-	close(m.quit)
+	m.once.Do(func() {
+		close(m.quit)
+	})
 	logger.Info("Shat down measurements ticker")
 }
 
@@ -94,10 +97,12 @@ func (m *Measurements) All() []*ruuvipb.RuuviStreamDataRequest {
 }
 
 func (m *Measurements) run() {
+	defer m.ticker.Stop()
+
 	for {
 		select {
 		case <-m.quit:
-			m.ticker.Stop()
+			return
 		case <-m.ticker.C:
 			m.lock.Lock()
 			logger.Info(
@@ -168,8 +173,8 @@ func (m *Measurements) archive() error {
 func (m *Measurements) pruneOldData() []*ruuvipb.RuuviStreamDataRequest {
 	cutoff := time.Now().Add(-m.maxAge)
 
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	return slices.DeleteFunc(m.data, func(d *ruuvipb.RuuviStreamDataRequest) bool {
 		if d.Timestamp == nil {

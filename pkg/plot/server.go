@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"weezel/ruuvigraph/pkg/cache"
@@ -23,6 +24,7 @@ type PlottingServer struct {
 
 	server        *grpc.Server
 	measureData   *cache.Measurements
+	once          *sync.Once
 	lastGenerated time.Time
 	doPlot        chan time.Duration
 	stop          chan struct{}
@@ -33,6 +35,7 @@ func NewPlottingServer() *PlottingServer {
 		server:        grpc.NewServer(),
 		measureData:   cache.New(),
 		lastGenerated: time.Now(),
+		once:          &sync.Once{},
 		doPlot:        make(chan time.Duration, 1),
 		stop:          make(chan struct{}),
 	}
@@ -60,27 +63,42 @@ func (p *PlottingServer) Listen(host, port string) error {
 }
 
 func (p *PlottingServer) Stop() {
-	p.measureData.Stop()
-	p.stop <- struct{}{}
-	close(p.stop)
+	p.once.Do(func() {
+		logger.Info("Shutting down plotting service")
+		p.measureData.Stop()
+		close(p.stop)
+		logger.Info("Shutting down plotting service")
+	})
 }
 
 func (p *PlottingServer) plotter() {
+	defer func() {
+		if p.server != nil {
+			logger.Info("Stopping gRPC server")
+			p.server.GracefulStop()
+			logger.Info("Stopped gRPC server")
+		}
+		close(p.doPlot)
+		close(p.stop)
+	}()
+
 	for {
 		select {
 		case <-p.stop:
-			close(p.doPlot)
+			return
 		case lastGenerated := <-p.doPlot:
+			logger.Info("Plotting measurements")
 			if err := Plot(p.measureData.All()); err != nil {
 				logger.Error(
 					"Failed to generate plot",
 					slog.Any("error", err),
 					slog.Duration("last_generated", lastGenerated),
 				)
+				continue
 			} else {
-				logger.Info("Generated results HTML file")
 				p.lastGenerated = time.Now()
 			}
+			logger.Info("Plotted measurements")
 		}
 	}
 }
@@ -116,7 +134,6 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 		p.measureData.Add(msg)
 		lastGenerated := time.Since(p.lastGenerated)
 		if lastGenerated.Minutes() >= 1 {
-			logger.Info("Generating results HTML file")
 			p.doPlot <- lastGenerated
 		}
 	}

@@ -123,13 +123,16 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 // Stopping is built-in for ble package so no need to build extra
 // functionality for such purposes.
 func (b *BtListener) Listen(ctx context.Context) {
+	defer func() {
+		b.ticker.Stop()
+	}()
+
 	logger.Info("Scanning for RuuviTags (press Ctrl+C to stop)...")
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				b.ticker.Stop()
 				return
 			case <-b.ticker.C:
 				// Use anonymous function here to make defer unlock work properly
