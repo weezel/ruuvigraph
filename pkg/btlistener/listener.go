@@ -66,9 +66,11 @@ func (b *BtListener) InitializeDevice(ctx context.Context) error {
 func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	started := time.Now()
 	// Normalise timestamps. All measurements will use the same timestamp.
+	b.lock.Lock()
 	for _, m := range b.measurements {
 		m.Timestamp = timestamppb.New(started)
 	}
+	b.lock.Unlock()
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
@@ -198,6 +200,9 @@ func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 	}
 
 	logger.Info(fmt.Sprintf("Received measures for %s", devName))
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	b.measurements[bleAdv.Addr().String()] = &ruuvipb.RuuviStreamDataRequest{
 		Device:      devName,
 		MacAddress:  bleAdv.Addr().String(),
