@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
@@ -22,9 +23,8 @@ type Measurements struct {
 	ticker        *time.Ticker
 	once          *sync.Once
 	quit          chan struct{}
-	data          []*ruuvipb.RuuviStreamDataRequest
+	data          atomic.Pointer[[]*ruuvipb.RuuviStreamDataRequest]
 	maxAge        time.Duration
-	lock          sync.RWMutex
 }
 
 type OptionMeasurement func(mopt *Measurements)
@@ -58,12 +58,12 @@ func WithArchiveFilename(fname string) OptionMeasurement {
 
 func New(opts ...OptionMeasurement) *Measurements {
 	m := &Measurements{
-		data:   []*ruuvipb.RuuviStreamDataRequest{},
 		quit:   make(chan struct{}),
 		once:   &sync.Once{},
 		maxAge: time.Hour * 24 * 7,
 		ticker: time.NewTicker(time.Minute * 5),
 	}
+	m.data.Store(&[]*ruuvipb.RuuviStreamDataRequest{})
 
 	for _, opt := range opts {
 		opt(m)
@@ -83,17 +83,18 @@ func (m *Measurements) Stop() {
 }
 
 func (m *Measurements) Add(req *ruuvipb.RuuviStreamDataRequest) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	m.data = append(m.data, req)
+	for {
+		old := m.data.Load()
+		newSlice := append(*old, req)
+		if m.data.CompareAndSwap(old, &newSlice) {
+			return
+		}
+	}
 }
 
 func (m *Measurements) All() []*ruuvipb.RuuviStreamDataRequest {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-
-	return m.data
+	data := m.data.Load()
+	return *data
 }
 
 func (m *Measurements) run() {
@@ -104,10 +105,9 @@ func (m *Measurements) run() {
 		case <-m.quit:
 			return
 		case <-m.ticker.C:
-			m.lock.Lock()
 			logger.Info(
 				"Cleaning old measurements",
-				slog.Int("len", len(m.data)),
+				slog.Int("len", len(*m.data.Load())),
 			)
 
 			wg := sync.WaitGroup{}
@@ -124,17 +124,15 @@ func (m *Measurements) run() {
 				}()
 			}
 
-			countBefore := len(m.data)
-			m.data = m.pruneOldData()
-			removedItems := len(m.data) - countBefore
+			countBefore := len(*m.data.Load())
+			m.pruneOldData()
+			removedItems := len(*m.data.Load()) - countBefore
 			logger.Info(
 				"Cleaned old measurements",
 				slog.Int("removed_items", removedItems),
 			)
 
 			wg.Wait() // This is zero if no task has been launched, hence not blocking
-
-			m.lock.Unlock()
 		}
 	}
 }
@@ -142,9 +140,7 @@ func (m *Measurements) run() {
 func (m *Measurements) archive() error {
 	logger.Info("Writing archive file")
 
-	m.lock.RLock()
-	dataCopy := slices.Clone(m.data)
-	m.lock.RUnlock()
+	dataCopy := m.data.Load()
 
 	j, err := json.MarshalIndent(dataCopy, "", "  ")
 	if err != nil {
@@ -172,16 +168,17 @@ func (m *Measurements) archive() error {
 
 // pruneOldData method will be run by the ticker and is executed in scheduled manner.
 // There shouldn't be a need to run this manually.
-func (m *Measurements) pruneOldData() []*ruuvipb.RuuviStreamDataRequest {
+func (m *Measurements) pruneOldData() {
 	cutoff := time.Now().Add(-m.maxAge)
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	dataCopy := m.data.Load()
 
-	return slices.DeleteFunc(m.data, func(d *ruuvipb.RuuviStreamDataRequest) bool {
+	cleaned := slices.DeleteFunc(*dataCopy, func(d *ruuvipb.RuuviStreamDataRequest) bool {
 		if d.Timestamp == nil {
 			return true
 		}
 		return d.Timestamp.AsTime().Before(cutoff)
 	})
+
+	m.data.Store(&cleaned)
 }
