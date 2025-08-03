@@ -11,8 +11,9 @@ This drastically saves the battery life.
 Downside is that events aren't equally distributed and seems to be proportional to sensor's distance.
 Nevertheless, since tracking doesn't need to be in minute level this is okay.
 
-An example graph which consists four sensors:
-![alt text](plot_example.png)
+An example of collection logs (server & client) and a graph which consists four sensors:
+![Logs](collecting.png)
+![Plot of four sensors](plot_example.png)
 
 Charasteristics this application has:
 
@@ -23,9 +24,10 @@ Charasteristics this application has:
 * Avoids extensive writes to disk
   * Extremely important on Raspberry Pi and other machines which use micro SD cards
 
-## Dependencies
+## Development dependencies
 
 * Go > 1.23 (maybe older are okay too)
+* Buf
 
 ## Build
 
@@ -77,8 +79,6 @@ Better option would be to grant access to certain dedicated user only with e.g. 
 
 Lessons learned while doing this Sunday hack up and will be implemented for the version 2.0:
 
-* Clean up code
 * Hook up flags
-* Add automatic clean up for measurements data (on the server side)
-* Write results to disk for archiving purposes
+* Adjust archiving and implement restoring previous values from a disk
 
