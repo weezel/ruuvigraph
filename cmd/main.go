@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	"weezel/ruuvigraph/pkg/btlistener"
 	ruuvipb "weezel/ruuvigraph/pkg/generated/ruuvi/ruuvi/v1"
 	"weezel/ruuvigraph/pkg/logging"
 	"weezel/ruuvigraph/pkg/plot"
+	"weezel/ruuvigraph/pkg/profiling"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -35,6 +37,10 @@ var (
 )
 
 func runAsServer(ctx context.Context) {
+	pprofServer := profiling.NewPprofServer()
+	pprofServer.Start()
+	defer pprofServer.Shutdown(ctx)
+
 	server := plot.NewPlottingServer()
 	errCh := make(chan error, 1)
 	go func() {
@@ -56,6 +62,11 @@ func runAsServer(ctx context.Context) {
 }
 
 func runAsClient(ctx context.Context) {
+	os.Setenv("TRACE_SERVER_PORT", "1338")
+	pprofServer := profiling.NewPprofServer()
+	pprofServer.Start()
+	defer pprofServer.Shutdown(ctx)
+
 	logger.Info("Collecting measurements")
 	conn, err := grpc.NewClient(
 		net.JoinHostPort(*grpcHost, *grpcPort),
