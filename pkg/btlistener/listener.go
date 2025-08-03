@@ -137,28 +137,7 @@ func (b *BtListener) Listen(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-b.ticker.C:
-				// Use anonymous function here to make defer unlock work properly
-				func() {
-					b.lock.Lock()
-					defer b.lock.Unlock()
-
-					started := time.Now()
-					logger.Info("Streaming results")
-					if err := b.SendMeasurements(ctx); err != nil {
-						logger.Error(
-							"Failed to send measurements",
-							slog.Any("error", err),
-							slog.Int("count", len(b.measurements)),
-						)
-					}
-
-					logger.Info(
-						"Streamed results",
-						slog.Int("count", len(b.measurements)),
-						slog.Duration("duration", time.Since(started)),
-					)
-					b.measurements = make(map[string]*ruuvipb.RuuviStreamDataRequest)
-				}()
+				b.handleMeasurementSending(ctx)
 			}
 		}
 	}()
@@ -174,10 +153,33 @@ func (b *BtListener) Listen(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+func (b *BtListener) handleMeasurementSending(ctx context.Context) {
+	started := time.Now()
+	b.lock.RLock()
+	countMeasurements := len(b.measurements)
+	b.lock.RUnlock()
+	logger.Info("Streaming results")
+	if err := b.SendMeasurements(ctx); err != nil {
+		logger.Error(
+			"Failed to send measurements",
+			slog.Any("error", err),
+			slog.Int("count", countMeasurements),
+		)
+		return
+	}
 
+	logger.Info(
+		"Streamed results",
+		slog.Int("count", countMeasurements),
+		slog.Duration("duration", time.Since(started)),
+	)
+
+	b.lock.Lock()
+	b.measurements = make(map[string]*ruuvipb.RuuviStreamDataRequest)
+	b.lock.Unlock()
+}
+
+func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 	var found bool
 	var devName string
 	if devName, found = b.deviceAliases[bleAdv.Addr().String()]; !found {
