@@ -77,7 +77,7 @@ func New(opts ...OptionMeasurement) *Measurements {
 func (m *Measurements) Stop() {
 	logger.Info("Shutting down measurements ticker")
 	m.once.Do(func() {
-		close(m.quit)
+		m.quit <- struct{}{}
 	})
 	logger.Info("Shat down measurements ticker")
 }
@@ -98,7 +98,10 @@ func (m *Measurements) All() []*ruuvipb.RuuviStreamDataRequest {
 }
 
 func (m *Measurements) run() {
-	defer m.ticker.Stop()
+	defer func() {
+		m.ticker.Stop()
+		close(m.quit)
+	}()
 
 	for {
 		select {

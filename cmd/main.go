@@ -46,10 +46,11 @@ func runAsServer(ctx context.Context) {
 	go func() {
 		errCh <- server.Listen(*grpcHost, *grpcPort)
 	}()
+	defer server.Stop()
 
 	select {
 	case <-ctx.Done():
-		server.Stop()
+		return
 	case err := <-errCh:
 		if err != nil {
 			logger.Error(

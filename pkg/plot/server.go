@@ -37,7 +37,7 @@ func NewPlottingServer() *PlottingServer {
 		lastGenerated: time.Now(),
 		once:          &sync.Once{},
 		doPlot:        make(chan time.Duration, 1),
-		stop:          make(chan struct{}),
+		stop:          make(chan struct{}, 1),
 	}
 
 	ruuvipb.RegisterRuuviServer(ps.server, ps)
@@ -71,7 +71,7 @@ func (p *PlottingServer) Stop() {
 	p.once.Do(func() {
 		logger.Info("Shutting down plotting service")
 		p.measureData.Stop()
-		close(p.stop)
+		p.stop <- struct{}{}
 		logger.Info("Shutting down plotting service")
 	})
 }
