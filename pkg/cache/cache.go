@@ -85,7 +85,10 @@ func (m *Measurements) Stop() {
 func (m *Measurements) Add(req *ruuvipb.RuuviStreamDataRequest) {
 	for {
 		old := m.data.Load()
-		newSlice := append(*old, req)
+		newSlice := make([]*ruuvipb.RuuviStreamDataRequest, len(*old)+1)
+		copy(newSlice, *old)
+		newSlice[len(*old)] = req
+
 		if m.data.CompareAndSwap(old, &newSlice) {
 			return
 		}
@@ -94,7 +97,10 @@ func (m *Measurements) Add(req *ruuvipb.RuuviStreamDataRequest) {
 
 func (m *Measurements) All() []*ruuvipb.RuuviStreamDataRequest {
 	data := m.data.Load()
-	return *data
+	// Return a copy to prevent external mutation
+	copied := make([]*ruuvipb.RuuviStreamDataRequest, len(*data))
+	copy(copied, *data)
+	return copied
 }
 
 func (m *Measurements) run() {
@@ -143,7 +149,7 @@ func (m *Measurements) run() {
 func (m *Measurements) archive() error {
 	logger.Info("Writing archive file")
 
-	dataCopy := m.data.Load()
+	dataCopy := m.All()
 
 	j, err := json.MarshalIndent(dataCopy, "", "  ")
 	if err != nil {
@@ -174,14 +180,23 @@ func (m *Measurements) archive() error {
 func (m *Measurements) pruneOldData() {
 	cutoff := time.Now().Add(-m.maxAge)
 
-	dataCopy := m.data.Load()
+	for {
+		old := m.data.Load()
+		original := *old
 
-	cleaned := slices.DeleteFunc(*dataCopy, func(d *ruuvipb.RuuviStreamDataRequest) bool {
-		if d.Timestamp == nil {
-			return true
+		// Copy original slice to avoid mutating shared memory
+		copied := make([]*ruuvipb.RuuviStreamDataRequest, len(original))
+		copy(copied, original)
+
+		cleaned := slices.DeleteFunc(copied, func(d *ruuvipb.RuuviStreamDataRequest) bool {
+			if d.Timestamp == nil {
+				return true
+			}
+			return d.Timestamp.AsTime().Before(cutoff)
+		})
+
+		if m.data.CompareAndSwap(old, &cleaned) {
+			break
 		}
-		return d.Timestamp.AsTime().Before(cutoff)
-	})
-
-	m.data.Store(&cleaned)
+	}
 }
