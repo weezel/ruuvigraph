@@ -48,7 +48,7 @@ func getPressure(data []*ruuvipb.RuuviStreamDataRequest) []opts.LineData {
 			// Name: d.Device,
 			Value: []any{
 				d.Timestamp.AsTime().Local().Format(time.RFC3339), // X axis
-				d.GetPressure(), // Y axis
+				d.GetPressure() / 10.0,                            // Y axis
 			},
 		})
 	}
