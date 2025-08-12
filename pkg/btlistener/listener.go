@@ -29,8 +29,7 @@ type BtListener struct {
 	device         *blelinux.Device
 	ticker         *time.Ticker
 	deviceAliases  map[string]string
-	measurements   map[string]*ruuvipb.RuuviStreamDataRequest
-	lock           sync.RWMutex
+	measurements   sync.Map // key=string, value=*ruuvipb.RuuviStreamDataRequest
 }
 
 func NewListener(streamerClient ruuvipb.RuuviClient) *BtListener {
@@ -47,7 +46,6 @@ func NewListener(streamerClient ruuvipb.RuuviClient) *BtListener {
 	return &BtListener{
 		deviceAliases:  devAliases,
 		streamerClient: streamerClient,
-		measurements:   make(map[string]*ruuvipb.RuuviStreamDataRequest),
 		ticker:         time.NewTicker(10 * time.Minute),
 	}
 }
@@ -59,18 +57,19 @@ func (b *BtListener) InitializeDevice(ctx context.Context) error {
 	}
 	b.device = dev
 	ble.SetDefaultDevice(b.device)
-
 	return nil
 }
 
 func (b *BtListener) SendMeasurements(ctx context.Context) error {
 	started := time.Now()
-	// Normalise timestamps. All measurements will use the same timestamp.
-	b.lock.Lock()
-	for _, m := range b.measurements {
-		m.Timestamp = timestamppb.New(started)
-	}
-	b.lock.Unlock()
+
+	// Normalise timestamps
+	b.measurements.Range(func(_, value any) bool {
+		if m, ok := value.(*ruuvipb.RuuviStreamDataRequest); ok {
+			m.Timestamp = timestamppb.New(started)
+		}
+		return true
+	})
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
@@ -87,7 +86,11 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 		}
 	}()
 
-	for _, m := range b.measurements {
+	b.measurements.Range(func(_, value any) bool {
+		m, ok := value.(*ruuvipb.RuuviStreamDataRequest)
+		if !ok {
+			return true
+		}
 		logger.Info(
 			"Sending data",
 			slog.String("device", m.Device),
@@ -101,20 +104,23 @@ func (b *BtListener) SendMeasurements(ctx context.Context) error {
 				slog.String("mac", m.MacAddress),
 				slog.Any("error", err),
 			)
+			return true
 		}
+
 		logger.Info(
 			"Sent data",
 			slog.String("device", m.Device),
 			slog.String("mac", m.MacAddress),
 			slog.Time("timestamp", m.Timestamp.AsTime().Local()),
 		)
-	}
+		return true
+	})
+
 	// Receive ACK
 	resp, err := stream.CloseAndRecv()
 	if err != nil {
 		return fmt.Errorf("receive ack: %w", err)
 	}
-
 	logger.Info(fmt.Sprintf("Server responded: %q", resp.GetMessage()))
 
 	return nil
@@ -155,9 +161,12 @@ func (b *BtListener) Listen(ctx context.Context) {
 
 func (b *BtListener) handleMeasurementSending(ctx context.Context) {
 	started := time.Now()
-	b.lock.RLock()
-	countMeasurements := len(b.measurements)
-	b.lock.RUnlock()
+	countMeasurements := 0
+	b.measurements.Range(func(_, _ any) bool {
+		countMeasurements++
+		return true
+	})
+
 	logger.Info("Streaming results")
 	if err := b.SendMeasurements(ctx); err != nil {
 		logger.Error(
@@ -174,9 +183,11 @@ func (b *BtListener) handleMeasurementSending(ctx context.Context) {
 		slog.Duration("duration", time.Since(started)),
 	)
 
-	b.lock.Lock()
-	b.measurements = make(map[string]*ruuvipb.RuuviStreamDataRequest)
-	b.lock.Unlock()
+	// Clear measurements
+	b.measurements.Range(func(key, _ any) bool {
+		b.measurements.Delete(key)
+		return true
+	})
 }
 
 func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
@@ -203,16 +214,17 @@ func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
 
 	logger.Info(fmt.Sprintf("Received measures for %s", devName))
 
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.measurements[bleAdv.Addr().String()] = &ruuvipb.RuuviStreamDataRequest{
-		Device:      devName,
-		MacAddress:  bleAdv.Addr().String(),
-		Temperature: float32(payload.Temperature),
-		Humidity:    float32(payload.Humidity),
-		Pressure:    float32(payload.Pressure) / 10.0,
-		BatterVolts: float32(payload.Battery) / 1000.0,
-		Rssi:        int32(bleAdv.RSSI()),
-		Timestamp:   timestamppb.New(time.Now().Local()),
-	}
+	b.measurements.Store(
+		bleAdv.Addr().String(),
+		&ruuvipb.RuuviStreamDataRequest{
+			Device:      devName,
+			MacAddress:  bleAdv.Addr().String(),
+			Temperature: float32(payload.Temperature),
+			Humidity:    float32(payload.Humidity),
+			Pressure:    float32(payload.Pressure) / 10.0,
+			BatterVolts: float32(payload.Battery) / 1000.0,
+			Rssi:        int32(bleAdv.RSSI()),
+			Timestamp:   timestamppb.New(time.Now().Local()),
+		},
+	)
 }
