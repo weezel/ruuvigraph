@@ -139,10 +139,11 @@ func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error
 		)
 
 		p.measureData.Add(msg)
-		lastGenerated := time.Since(p.lastGenerated)
-		if lastGenerated.Minutes() >= 1 {
+
+		if time.Since(p.lastGenerated) >= time.Minute {
+			p.lastGenerated = time.Now()
 			select {
-			case p.doPlot <- lastGenerated:
+			case p.doPlot <- time.Since(p.lastGenerated):
 			default: // Plot already scheduled, no need to enqueue another
 			}
 		}
