@@ -28,12 +28,12 @@ var (
 var logger *slog.Logger = logging.NewColorLogHandler()
 
 var (
-	grpcHost       = flag.String("h", "127.0.0.1", "Host where to serve or connect to")
-	grpcPort       = flag.String("p", "50051", "Port where to serve or connect to")
-	aliasesFile    = flag.String("a", "ruuvi_aliases.conf", "Aliases file for friendly names to devices")
-	runServer      = flag.Bool("s", false, "Run as a server & plotter")
-	strictMatching = flag.Bool("S", false, "Only match devices which are listed in aliases configuration")   // TODO
-	tickTime       = flag.Duration("t", 1*time.Minute, "Transmit measurements to server every N time units") // TODO
+	grpcHost    = flag.String("h", "127.0.0.1", "Host where to serve or connect to")
+	grpcPort    = flag.String("p", "50051", "Port where to serve or connect to")
+	aliasesFile = flag.String("a", "ruuvi_aliases.conf", "Aliases file for friendly names to devices")
+	runServer   = flag.Bool("s", false, "Run as a server & plotter")
+	listenOnly  = flag.Bool("l", false, "Only listen incoming beacons, don't do anything else")
+	tickTime    = flag.Duration("t", 1*time.Minute, "Transmit measurements to server every N time units") // TODO
 )
 
 func runAsServer(ctx context.Context) {
@@ -68,6 +68,23 @@ func runAsClient(ctx context.Context) {
 	pprofServer.Start()
 	defer pprofServer.Shutdown(ctx)
 
+	cCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if *listenOnly {
+		btListener := btlistener.NewListener(nil, btlistener.WithListenOnly(true))
+		if err := btListener.InitializeDevice(cCtx); err != nil {
+			logger.Error(
+				"Couldn't initialize device",
+				slog.Any("error", err),
+			)
+			return
+		}
+
+		btListener.Listen(cCtx)
+		return
+	}
+
 	logger.Info("Collecting measurements")
 	conn, err := grpc.NewClient(
 		net.JoinHostPort(*grpcHost, *grpcPort),
@@ -84,9 +101,6 @@ func runAsClient(ctx context.Context) {
 	logger.Info(fmt.Sprintf("Measurements receiving endpoint configured to %s:%s", *grpcHost, *grpcPort))
 
 	client := ruuvipb.NewRuuviClient(conn)
-
-	cCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	btListener := btlistener.NewListener(
 		client,
@@ -116,6 +130,8 @@ func main() {
 	flag.Parse()
 
 	switch {
+	case *listenOnly && *runServer == false:
+		runAsClient(ctx)
 	case *runServer:
 		runAsServer(ctx)
 	default:

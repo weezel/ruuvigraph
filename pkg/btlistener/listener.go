@@ -24,6 +24,7 @@ var logger *slog.Logger = logging.NewColorLogHandler()
 type BtListener struct {
 	ruuvipb.UnimplementedRuuviServer
 
+	listenOnly      bool
 	streamerClient  ruuvipb.RuuviClient
 	device          *blelinux.Device
 	ticker          *time.Ticker
@@ -40,6 +41,12 @@ func WithAliasesFile(name string) ListenerOption {
 	}
 }
 
+func WithListenOnly(listenOnly bool) ListenerOption {
+	return func(bl *BtListener) {
+		bl.listenOnly = listenOnly
+	}
+}
+
 func NewListener(streamerClient ruuvipb.RuuviClient, opts ...ListenerOption) *BtListener {
 	listener := &BtListener{
 		streamerClient:  streamerClient,
@@ -51,16 +58,18 @@ func NewListener(streamerClient ruuvipb.RuuviClient, opts ...ListenerOption) *Bt
 		opt(listener)
 	}
 
-	devAliases, err := ruuvi.ReadAliases(listener.aliasesFilename)
-	if err != nil {
-		logger.Error(
-			"Failed to read aliases file",
-			slog.Any("error", err),
-		)
-		os.Exit(1)
-	}
+	if !listener.listenOnly {
+		devAliases, err := ruuvi.ReadAliases(listener.aliasesFilename)
+		if err != nil {
+			logger.Error(
+				"Failed to read aliases file",
+				slog.Any("error", err),
+			)
+			os.Exit(1)
+		}
 
-	listener.deviceAliases = devAliases
+		listener.deviceAliases = devAliases
+	}
 
 	return listener
 }
@@ -152,6 +161,15 @@ func (b *BtListener) Listen(ctx context.Context) {
 
 	logger.Info("Scanning for RuuviTags (press Ctrl+C to stop)...")
 
+	if b.listenOnly {
+		err := ble.Scan(ctx, true, b.listenOnlyAdvertisements, nil)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("Scan failed", slog.Any("error", err))
+		}
+		logger.Info("Scanning stopped")
+		return
+	}
+
 	go func() {
 		for {
 			select {
@@ -203,6 +221,14 @@ func (b *BtListener) handleMeasurementSending(ctx context.Context) {
 		b.measurements.Delete(key)
 		return true
 	})
+}
+
+func (b *BtListener) listenOnlyAdvertisements(bleAdv ble.Advertisement) {
+	logger.Info("Received beacon",
+		slog.String("addr", bleAdv.Addr().String()),
+		slog.String("name", bleAdv.LocalName()),
+		slog.Int("RSSI", bleAdv.RSSI()),
+	)
 }
 
 func (b *BtListener) handleAdvertisement(bleAdv ble.Advertisement) {
