@@ -2,11 +2,14 @@ package plot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -22,12 +25,30 @@ var logger *slog.Logger = logging.NewColorLogHandler()
 type PlottingServer struct {
 	ruuvipb.UnimplementedRuuviServer
 
+	storeFilename *string
 	server        *grpc.Server
 	measureData   *cache.Measurements
 	once          *sync.Once
 	lastGenerated time.Time
 	doPlot        chan time.Duration
 	stop          chan struct{}
+}
+
+type OptionServer func(pOpt *PlottingServer)
+
+func WithArchiveFilename(fname string) OptionServer {
+	return func(psopt *PlottingServer) {
+		fullPath, err := filepath.Abs(fname)
+		if err != nil {
+			logger.Error(
+				"Couldn't get absolute file path for the archive file",
+				slog.String("fname", fname),
+				slog.Any("error", err),
+			)
+			return
+		}
+		psopt.storeFilename = &fullPath
+	}
 }
 
 func NewPlottingServer() *PlottingServer {
@@ -102,12 +123,49 @@ func (p *PlottingServer) plotter() {
 					slog.Duration("last_generated", lastGenerated),
 				)
 				continue
-			} else {
-				p.lastGenerated = time.Now()
 			}
+
+			p.lastGenerated = time.Now()
+
+			wg := sync.WaitGroup{}
+			if p.storeFilename != nil && *p.storeFilename != "" {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if err := p.archive(); err != nil {
+						logger.Error(
+							"Failed to write archive file",
+							slog.Any("error", err),
+						)
+					}
+				}()
+			}
+			wg.Wait() // This is zero if no task has been launched, hence not blocking
 			logger.Info("Plotted measurements")
 		}
 	}
+}
+
+func (p *PlottingServer) archive() error {
+	logger.Info("Writing archive file")
+
+	dataCopy := p.measureData.All()
+
+	j, err := json.MarshalIndent(dataCopy, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal measurements: %w", err)
+	}
+
+	if err = os.WriteFile(*p.storeFilename, j, 0o600); err != nil {
+		return fmt.Errorf("write json: %w", err)
+	}
+
+	logger.Info(
+		"Wrote archive file",
+		slog.String("fpath", *p.storeFilename),
+	)
+
+	return nil
 }
 
 func (p *PlottingServer) StreamData(stream ruuvipb.Ruuvi_StreamDataServer) error {
