@@ -1,7 +1,6 @@
 package btlistener
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -25,16 +24,34 @@ var logger *slog.Logger = logging.NewColorLogHandler()
 type BtListener struct {
 	ruuvipb.UnimplementedRuuviServer
 
-	streamerClient ruuvipb.RuuviClient
-	device         *blelinux.Device
-	ticker         *time.Ticker
-	deviceAliases  map[string]string
-	measurements   sync.Map // key=string, value=*ruuvipb.RuuviStreamDataRequest
+	streamerClient  ruuvipb.RuuviClient
+	device          *blelinux.Device
+	ticker          *time.Ticker
+	deviceAliases   map[string]string
+	aliasesFilename string
+	measurements    sync.Map // key=string, value=*ruuvipb.RuuviStreamDataRequest
 }
 
-func NewListener(streamerClient ruuvipb.RuuviClient) *BtListener {
-	aliasesFname := cmp.Or(os.Getenv("ALIASES_FILE"), "ruuvi_aliases.conf")
-	devAliases, err := ruuvi.ReadAliases(aliasesFname)
+type ListenerOption func(*BtListener)
+
+func WithAliasesFile(name string) ListenerOption {
+	return func(bl *BtListener) {
+		bl.aliasesFilename = name
+	}
+}
+
+func NewListener(streamerClient ruuvipb.RuuviClient, opts ...ListenerOption) *BtListener {
+	listener := &BtListener{
+		streamerClient:  streamerClient,
+		ticker:          time.NewTicker(10 * time.Minute),
+		aliasesFilename: "ruuvi_aliases.conf",
+	}
+
+	for _, opt := range opts {
+		opt(listener)
+	}
+
+	devAliases, err := ruuvi.ReadAliases(listener.aliasesFilename)
 	if err != nil {
 		logger.Error(
 			"Failed to read aliases file",
@@ -43,11 +60,9 @@ func NewListener(streamerClient ruuvipb.RuuviClient) *BtListener {
 		os.Exit(1)
 	}
 
-	return &BtListener{
-		deviceAliases:  devAliases,
-		streamerClient: streamerClient,
-		ticker:         time.NewTicker(10 * time.Minute),
-	}
+	listener.deviceAliases = devAliases
+
+	return listener
 }
 
 func (b *BtListener) InitializeDevice(ctx context.Context) error {

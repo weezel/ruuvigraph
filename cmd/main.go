@@ -88,7 +88,10 @@ func runAsClient(ctx context.Context) {
 	cCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	btListener := btlistener.NewListener(client)
+	btListener := btlistener.NewListener(
+		client,
+		btlistener.WithAliasesFile(*aliasesFile),
+	)
 
 	if err := btListener.InitializeDevice(cCtx); err != nil {
 		logger.Error(
