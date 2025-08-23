@@ -34,6 +34,12 @@ cross-compile:
 		$(MAKE) GOOS=$$GOOS GOARCH=$$GOARCH _build; \
 	done
 
+release:
+	goreleaser release --clean
+
+release-test:
+	goreleaser release --snapshot --clean
+
 dist/$(APP_NAME):
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		$(GO) build $(LDFLAGS) \

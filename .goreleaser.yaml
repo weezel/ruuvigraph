@@ -1,0 +1,26 @@
+version: 2
+
+project_name: ruuvigraph
+
+builds:
+  - id: ruuvigraph
+    main: ./cmd
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - openbsd
+    goarch:
+      - amd64
+      - arm64
+    binary: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+
+archives: []
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: weezel
+    name: ruuvigraph
